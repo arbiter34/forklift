@@ -22,6 +22,7 @@ import forklift.decorators.Order;
 import forklift.decorators.Queue;
 import forklift.decorators.Response;
 import forklift.decorators.Topic;
+import forklift.exception.CompositeException;
 import forklift.message.Header;
 import forklift.producers.ForkliftProducerI;
 import forklift.properties.PropertiesManager;
@@ -466,6 +467,47 @@ public class Consumer {
         });
 
         return closeMe;
+    }
+
+    public boolean validate() {
+        boolean validated = false;
+        try {
+            final Object instance = msgHandler.newInstance();
+            validated = !injectFields.keySet().stream().anyMatch(decorator -> {
+                final Map<Class<?>, List<Field>> fields = injectFields.get(decorator);
+
+                return fields.keySet().stream().anyMatch(clazz ->
+                    fields.get(clazz).stream().anyMatch(f -> {
+                        if (decorator == javax.inject.Inject.class) {
+                            boolean error = true;
+                            final List<Exception> exceptions = new ArrayList<>();
+                            for (ConsumerService service : services) {
+                                try {
+                                    final Object o = service.resolve(clazz, null);
+                                    if (o != null) {
+                                        f.set(instance, o);
+                                        error = false;
+                                        break;
+                                    }
+                                } catch (Exception e) {
+                                    exceptions.add(e);
+                                }
+                            }
+                            if (error) {
+                                log.error("Error resolving bean {} for field {} on consumer {}",
+                                          clazz.getCanonicalName(), f.getName(), msgHandler.getCanonicalName(),
+                                          new CompositeException(exceptions));
+                                return true;
+                            }
+                        }
+                        return false;
+                    })
+                );
+            });
+        } catch (InstantiationException | IllegalAccessException e) {
+            log.error("Error creating new instance of consumer for type {}", msgHandler.getCanonicalName(), e);
+        }
+        return validated;
     }
 
     public Class<?> getMsgHandler() {
