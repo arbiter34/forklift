@@ -39,9 +39,9 @@ public class ConsumerDeploymentEvents implements DeploymentEvents {
     }
 
     @Override
-    public synchronized void onDeploy(final Deployment deployment) {
+    public synchronized Map<Class<?>, Map<Class<?>, List<Exception>>> onDeploy(final Deployment deployment) {
         log.info("Deploying: " + deployment);
-
+        final Map<Class<?>, Map<Class<?>, List<Exception>>> onDeployErrors = new HashMap<>();
         final List<ConsumerThread> threads = new ArrayList<>();
         final List<ConsumerService> services = new ArrayList<>();
 
@@ -68,7 +68,8 @@ public class ConsumerDeploymentEvents implements DeploymentEvents {
                 log.info("Found annotation {} on {}", a, c);
                 final Consumer consumer = new Consumer(c, forklift.getConnector(), deployment.getClassLoader(), (Queue)a); 
                 consumer.setServices(services);
-                
+                onDeployErrors.put(c, consumer.validate());
+
                 final ConsumerThread thread = new ConsumerThread(consumer);
                 threads.add(thread);
                 executor.submit(thread);    
@@ -80,6 +81,7 @@ public class ConsumerDeploymentEvents implements DeploymentEvents {
                 log.info("Found annotation {} on {}", a, c);
                 final Consumer consumer = new Consumer(c, forklift.getConnector(), deployment.getClassLoader(), (Topic)a); 
                 consumer.setServices(services);
+                onDeployErrors.put(c, consumer.validate());
 
                 final ConsumerThread thread = new ConsumerThread(consumer);
                 threads.add(thread);
@@ -89,6 +91,7 @@ public class ConsumerDeploymentEvents implements DeploymentEvents {
 
         deployments.put(deployment, threads);
         serviceDeployments.put(deployment, services);
+        return onDeployErrors;
     }
 
     @Override

@@ -21,6 +21,9 @@ import org.apache.http.annotation.ThreadSafe;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -120,18 +123,26 @@ public final class ForkliftServer {
     }
 
     /**
+     * @return the current {@link Forklift} of the server
+     */
+    public Forklift getForklift() {
+        return forklift;
+    }
+
+    /**
      * Registers a collection of classes as new deployment.  Classes are scanned for the {@link Queue}, {@link Topic},
      * {@link Topics} {@link Service}, {@link CoreService} annotations.
      *
      * @param deploymentClasses the classes which make up the deployment
      */
-    public synchronized void registerDeployment(Class<?>... deploymentClasses) {
+    public synchronized Map<Class<?>, Map<Class<?>, List<Exception>>> registerDeployment(Class<?>... deploymentClasses) {
         Preconditions.checkState(state == ServerState.RUNNING);
         Deployment deployment = new ClassDeployment(deploymentClasses);
         if (!classDeployments.isRegistered(deployment)) {
             classDeployments.register(deployment);
-            deploymentEvents.onDeploy(deployment);
+            return deploymentEvents.onDeploy(deployment);
         }
+        return Collections.emptyMap();
     }
 
     /**

@@ -22,7 +22,6 @@ import forklift.decorators.Order;
 import forklift.decorators.Queue;
 import forklift.decorators.Response;
 import forklift.decorators.Topic;
-import forklift.exception.CompositeException;
 import forklift.message.Header;
 import forklift.producers.ForkliftProducerI;
 import forklift.properties.PropertiesManager;
@@ -469,15 +468,15 @@ public class Consumer {
         return closeMe;
     }
 
-    public boolean validate() {
-        boolean validated = false;
+    public Map<Class<?>, List<Exception>> validate() {
+        final Map<Class<?>, List<Exception>> beanResolutionErrors = new HashMap<>();
         try {
             final Object instance = msgHandler.newInstance();
-            validated = !injectFields.keySet().stream().anyMatch(decorator -> {
+            injectFields.keySet().forEach(decorator -> {
                 final Map<Class<?>, List<Field>> fields = injectFields.get(decorator);
 
-                return fields.keySet().stream().anyMatch(clazz ->
-                    fields.get(clazz).stream().anyMatch(f -> {
+                fields.keySet().forEach(clazz ->
+                    fields.get(clazz).forEach(f -> {
                         if (decorator == javax.inject.Inject.class) {
                             boolean error = true;
                             final List<Exception> exceptions = new ArrayList<>();
@@ -494,20 +493,16 @@ public class Consumer {
                                 }
                             }
                             if (error) {
-                                log.error("Error resolving bean {} for field {} on consumer {}",
-                                          clazz.getCanonicalName(), f.getName(), msgHandler.getCanonicalName(),
-                                          new CompositeException(exceptions));
-                                return true;
+                                beanResolutionErrors.put(clazz, exceptions);
                             }
                         }
-                        return false;
                     })
                 );
             });
         } catch (InstantiationException | IllegalAccessException e) {
-            log.error("Error creating new instance of consumer for type {}", msgHandler.getCanonicalName(), e);
+            log.error("Error creating new instance of consumer for type {} in validate.", msgHandler.getCanonicalName(), e);
         }
-        return validated;
+        return beanResolutionErrors;
     }
 
     public Class<?> getMsgHandler() {

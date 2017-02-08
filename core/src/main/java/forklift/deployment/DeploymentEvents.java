@@ -1,7 +1,10 @@
 package forklift.deployment;
 
+import java.util.List;
+import java.util.Map;
+
 public interface DeploymentEvents {
-    void onDeploy(Deployment deployment);
+    Map<Class<?>, Map<Class<?>, List<Exception>>> onDeploy(Deployment deployment);
     void onUndeploy(Deployment deployment);
 
     /**
